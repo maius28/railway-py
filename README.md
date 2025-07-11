@@ -8,15 +8,15 @@
 railway-py/
 ├── app/
 │   ├── api/
-│   │   └── v1/
+│   │   └── v1/ #接口代码
 │   │       └── endpoints.py
 │   ├── core/
 │   │   ├── config.py
 │   │   └── error_handler.py
-│   ├── models/
-│   │   └── response.py
+│   ├── models/ #参数和返回对象
+│   │   └── response.py 
 │   ├── services/
-│   │   └── algorithm.py
+│   │   └── algorithm.py #算法代码
 │   └── main.py
 ├── requirements.txt
 ├── Dockerfile
@@ -38,6 +38,11 @@ railway-py/
    docker build -t railway-py .
    docker run -p 8000:8000 railway-py
    ```
+
+## 算法代码集成
+1. 拷贝算法代码到/services目录中
+2. 在models/文件夹下创建自己的http响应参数的返回值
+3. app/api/vi/endpoints.py文件中创建http方法，接收http参数->参数转换成算法入口参数->调用算法方法->方法返回值转换成http返回对象
 
 ## 主要功能
 - 封装 Python 算法为 HTTP 接口

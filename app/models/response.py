@@ -6,12 +6,10 @@ class ResponseModel(BaseModel):
     msg: str
     data: Optional[Any] = None 
 
-    def success(self, data: Optional[Any]):
-        self.code = 200
-        self.msg = '请求成功'
-        self.data = data
+    @classmethod
+    def success(cls, data: Optional[Any] = None):
+        return cls(code=200, msg='请求成功', data=data)
 
-    def fail(self, msg : str): 
-        self.code = 500
-        self.msg = msg
-        self.data = None
+    @classmethod
+    def fail(cls, msg: str): 
+        return cls(code=500, msg=msg, data=None)
