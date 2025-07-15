@@ -1,0 +1,120 @@
+{
+    "A": {
+        "description": "铁路外部人员入侵铁路",
+        "arg": [
+            {
+                "time": "铁路外部人员入侵铁路",
+                "locate": "上行线K453+263m"
+            }
+        ],
+        "type": "warn",
+        "predict_time": "10s",
+        "next": "B",
+        "state": "not done"
+    },
+    "B": {
+        "description": "系统工作人员判断是否能够通知站段所**相关站段所**进行提示和驱赶",
+        "type": "branch_selection",
+        "predict_time":"0s",
+        "options": {
+            "是": "C",
+            "否": "F"
+        },
+        "state": "not done"
+    },
+    "C": {
+        "description": "站段所提示和驱赶是否成功",
+        "type": "branch_selection",
+        "predict_time":"0s",
+        "options": {
+            "是": "M",
+            "否": "D"
+        },
+        "state": "not done"
+    },
+    "D": {
+        "description": "系统工作人员判断列车距离外部人员的距离",
+        "type": "branch_selection",
+        "predict_time":"0s",
+        "options": {
+            "距离足够长能够减速": "E",
+            "距离过短，需要紧急刹车": "F"
+        },
+        "state": "not done"
+    },
+    "E": {
+        "description": "司机应立即减速停车，同时持续鸣笛警告。",
+        "type": "action",
+        "predict_time": "2min",
+        "next": "G",
+        "state": "not done"
+    },
+    "F": {
+        "description": "司机应立即紧急刹车，同时持续鸣笛警告。",
+        "type": "action",
+        "predict_time": "30s",
+        "next": "G",
+        "state": "not done"
+    },
+    "G": {
+        "description": "是否碰撞到外部人员",
+        "type": "branch_selection",
+        "predict_time":"0s",
+        "options": {
+            "是": "H",
+            "否": "L"
+        },
+        "state": "not done"
+    },
+    "H": {
+        "description": "需下车处理时，列车调度员发布邻线列车限速160km/h及以下的调度命令，限速位置按停车列车位置前后各1 km确定**限速位置**。司机在接到列车调度员已发布相关调度命令的口头指示后，通知随车机械师手动开门下车确认动车组技术状态。",
+        "type": "action",
+        "predict_time": "2min",
+        "next": "I",
+        "state": "not done"
+    },
+    "I": {
+        "description": "随车机械师判断是否能够继续运行，并告知列车调度员",
+        "type": "branch_selection",
+        "predict_time":"0s",
+        "options": {
+            "影响行车": "J",
+            "不影响行车": "K"
+        },
+        "state": "not done"
+    },
+    "J": {
+        "description": "列车调度员接到碰撞障碍物和撞人的报告后，应立即通知120、邻近车站和公安派出所派员到现场进行救援、处置。到达现场人员应及时了解、上报现场勘查处置情况",
+        "type": "action",
+        "predict_time": "10min",
+        "next": "K",
+        "state": "not done"
+    },
+    "K": {
+        "description": "经随车机械师检查确认若可以继续运行时，司机按随车机械师签认要求限速(根据事故现场的实际情况、救援进展以及铁路管理部门的决策进行调整）**限速数据**运行，并报告列车调度员 ",
+        "type": "action",
+        "predict_time": "20s",
+        "state": "not done",
+        "next": "END"
+    },
+    "L": {
+        "description": "经随车机械师检查确认若可以继续运行时，司机按随车机械师签认要求常速运行，并报告列车调度员 ",
+        "type": "action",
+        "predict_time": "1min",
+        "state": "not done",
+        "next": "END"
+    },
+    "M": {
+        "description": "列车正常运行",
+        "type": "action",
+        "predict_time": "1min",
+        "state": "not done",
+        "next": "END"
+    },
+    "END": {
+      "description": "结束",
+      "type":"action",
+      "predict_time":"0s",
+      "state":"not done"
+    }
+}
