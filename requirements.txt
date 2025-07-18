@@ -1,4 +1,4 @@
 fastapi==0.110.2
 uvicorn==0.29.0
 pydantic>=2.0
-networkx==24.2
+networkx

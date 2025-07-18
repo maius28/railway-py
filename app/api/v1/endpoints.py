@@ -22,4 +22,5 @@ def add_numbers(request: AddRequest):
 @log_function
 def forecast(request: PredictRequest):
     # 这里可以调用后果预估算法的具体实现
-    return ResponseModel.success(request)
+    algorithm_result = algorithm.get_predict_result(request)
+    return ResponseModel.success(algorithm_result)
