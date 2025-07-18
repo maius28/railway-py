@@ -1,94 +1,76 @@
-name: Deploy to Aliyun Server
+name: Auto Deploy to Aliyun Server
 
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Run tests (if any)
-      run: |
-        # Add your test commands here
-        echo "No tests configured yet"
-        
-    - name: Build Docker image
-      run: |
-        docker build -t railway-py:${{ github.sha }} .
-        docker tag railway-py:${{ github.sha }} railway-py:latest
-        
-    - name: Save Docker image
-      run: |
-        docker save railway-py:latest | gzip > railway-py-latest.tar.gz
-        
     - name: Deploy to Aliyun Server
-      uses: appleboy/ssh-action@v0.1.7
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.ALIYUN_HOST }}
         username: ${{ secrets.ALIYUN_USER }}
         key: ${{ secrets.ALIYUN_SSH_KEY }}
         port: ${{ secrets.ALIYUN_PORT }}
         script: |
-          # Stop existing container
-          docker stop railway-py || true
-          docker rm railway-py || true
+          echo "开始部署 Railway-PY 应用..."
           
-          # Remove old image
-          docker rmi railway-py:latest || true
+          # 进入部署目录
+          cd /opt/railway-py || { echo "目录不存在，正在创建..."; mkdir -p /opt/railway-py; cd /opt/railway-py; }
           
-          # Create deployment directory
-          mkdir -p /opt/railway-py
-          cd /opt/railway-py
+          # 如果是第一次部署，克隆代码
+          if [ ! -d ".git" ]; then
+            echo "第一次部署，正在克隆代码..."
+            git clone https://github.com/maius28/railway-py.git .
+          else
+            echo "更新代码..."
+            git fetch origin
+            git reset --hard origin/master
+          fi
           
-    - name: Copy Docker image to server
-      uses: appleboy/scp-action@v0.1.4
-      with:
-        host: ${{ secrets.ALIYUN_HOST }}
-        username: ${{ secrets.ALIYUN_USER }}
-        key: ${{ secrets.ALIYUN_SSH_KEY }}
-        port: ${{ secrets.ALIYUN_PORT }}
-        source: "railway-py-latest.tar.gz"
-        target: "/opt/railway-py/"
-        
-    - name: Load and run Docker container
-      uses: appleboy/ssh-action@v0.1.7
-      with:
-        host: ${{ secrets.ALIYUN_HOST }}
-        username: ${{ secrets.ALIYUN_USER }}
-        key: ${{ secrets.ALIYUN_SSH_KEY }}
-        port: ${{ secrets.ALIYUN_PORT }}
-        script: |
-          cd /opt/railway-py
+          # 停止并删除现有容器
+          echo "停止现有容器..."
+          docker stop railway-py 2>/dev/null || true
+          docker rm railway-py 2>/dev/null || true
           
-          # Load Docker image
-          docker load < railway-py-latest.tar.gz
+          # 删除旧镜像（可选，节省空间）
+          echo "删除旧镜像..."
+          docker rmi railway-py:latest 2>/dev/null || true
           
-          # Run new container
+          # 构建新镜像
+          echo "构建Docker镜像..."
+          docker build -t railway-py:latest .
+          
+          # 运行新容器
+          echo "启动新容器..."
           docker run -d \
             --name railway-py \
             --restart unless-stopped \
             -p 8000:8000 \
             railway-py:latest
           
-          # Clean up
-          rm -f railway-py-latest.tar.gz
+          # 等待服务启动
+          echo "等待服务启动..."
+          sleep 10
           
-          # Show running containers
+          # 检查容器状态
+          echo "检查容器状态..."
           docker ps | grep railway-py
+          
+          # 测试服务
+          echo "测试服务..."
+          curl -f http://localhost:8000/ping && echo "✅ 服务启动成功！" || echo "❌ 服务启动失败"
+          
+          # 清理Docker系统（可选）
+          echo "清理Docker系统..."
+          docker system prune -f
+          
+          echo "部署完成！"
