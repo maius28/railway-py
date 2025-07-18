@@ -1,8 +1,61 @@
-# railway-py
+# Railway-PY
 
 本项目基于 FastAPI，旨在封装 Python 算法并通过 HTTP 接口对外提供服务，便于其他服务调用。
 
-## 目录结构
+## 🚀 自动部署
+
+本项目支持通过 GitHub Actions 自动部署到阿里云服务器。每次推送到 master 分支时，将自动触发构建和部署流程。
+
+## 📋 部署前准备
+
+### 1. 配置 GitHub Secrets
+
+在 GitHub 仓库的 Settings > Secrets and variables > Actions 中添加以下密钥：
+
+- `ALIYUN_HOST`: 阿里云服务器IP地址
+- `ALIYUN_USER`: 服务器用户名（通常是 root）
+- `ALIYUN_SSH_KEY`: SSH私钥内容
+- `ALIYUN_PORT`: SSH端口（通常是 22）
+
+### 2. 服务器环境准备
+
+在阿里云服务器上执行以下命令：
+
+```bash
+# 更新系统
+sudo apt update && sudo apt upgrade -y
+
+# 安装 Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# 安装 Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# 创建应用目录
+sudo mkdir -p /opt/railway-py
+sudo chown $USER:$USER /opt/railway-py
+
+# 重启以应用Docker组权限
+sudo reboot
+```
+
+### 3. 配置 Nginx（可选）
+
+```bash
+# 安装 Nginx
+sudo apt install nginx -y
+
+# 复制配置文件
+sudo cp nginx/railway-py.conf /etc/nginx/sites-available/
+sudo ln -s /etc/nginx/sites-available/railway-py.conf /etc/nginx/sites-enabled/
+
+# 测试配置并重启
+sudo nginx -t
+sudo systemctl reload nginx
+```
 
 ```
 railway-py/
