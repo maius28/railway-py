@@ -58,25 +58,59 @@ jobs:
           fi
           echo "✅ 当前目录: $(pwd)"
           
-          # 克隆或更新代码
+          # 获取代码
           echo "步骤3: 获取代码..."
-          if [ ! -d ".git" ]; then
-            echo "第一次部署，正在克隆代码..."
-            if ! git clone https://github.com/maius28/railway-py.git .; then
-              echo "❌ 代码克隆失败"
+          if [ ! -f "Dockerfile" ] || [ ! -f "requirements.txt" ]; then
+            echo "正在下载代码..."
+            # 清理可能存在的旧文件
+            rm -rf * .git* 2>/dev/null || true
+            
+            # 下载代码zip文件
+            if ! wget -O railway-py.zip https://codeload.github.com/maius28/railway-py/zip/refs/heads/master; then
+              echo "❌ 代码下载失败"
               exit 1
             fi
-            echo "✅ 代码克隆成功"
+            echo "✅ 代码下载成功"
+            
+            # 解压代码文件
+            if ! unzip -q railway-py.zip; then
+              echo "❌ 代码解压失败"
+              exit 1
+            fi
+            echo "✅ 代码解压成功"
+            
+            # 移动文件到当前目录
+            if ! mv railway-py-master/* . 2>/dev/null; then
+              echo "❌ 文件移动失败"
+              exit 1
+            fi
+            
+            # 清理临时文件
+            rm -rf railway-py.zip railway-py-master
+            echo "✅ 代码部署成功"
           else
-            echo "更新代码..."
-            if ! git fetch origin; then
-              echo "❌ 获取远程代码失败"
+            echo "发现已存在的代码文件，正在更新..."
+            # 清理现有文件
+            rm -rf * .git* 2>/dev/null || true
+            
+            # 重新下载最新代码
+            if ! wget -O railway-py.zip https://codeload.github.com/maius28/railway-py/zip/refs/heads/master; then
+              echo "❌ 代码下载失败"
               exit 1
             fi
-            if ! git reset --hard origin/master; then
-              echo "❌ 重置代码失败"
+            
+            if ! unzip -q railway-py.zip; then
+              echo "❌ 代码解压失败"
               exit 1
             fi
+            
+            if ! mv railway-py-master/* . 2>/dev/null; then
+              echo "❌ 文件移动失败"
+              exit 1
+            fi
+            
+            # 清理临时文件
+            rm -rf railway-py.zip railway-py-master
             echo "✅ 代码更新成功"
           fi
           
