@@ -21,56 +21,185 @@ jobs:
         key: ${{ secrets.ALIYUN_SSH_KEY }}
         port: ${{ secrets.ALIYUN_PORT }}
         script: |
+          set -e  # 遇到任何错误立即退出
+          set -o pipefail  # 管道命令中任何一个失败都会导致整个管道失败
+          
+          echo "========================================="
           echo "开始部署 Railway-PY 应用..."
+          echo "当前用户: $(whoami)"
+          echo "当前时间: $(date)"
+          echo "========================================="
           
-          # 进入部署目录
-          cd /opt/railway-py || { echo "目录不存在，正在创建..."; mkdir -p /opt/railway-py; cd /opt/railway-py; }
-          
-          # 如果是第一次部署，克隆代码
-          if [ ! -d ".git" ]; then
-            echo "第一次部署，正在克隆代码..."
-            git clone https://github.com/maius28/railway-py.git .
-          else
-            echo "更新代码..."
-            git fetch origin
-            git reset --hard origin/master
+          # 检查Docker是否安装和运行
+          echo "步骤1: 检查Docker状态..."
+          if ! docker --version; then
+            echo "❌ Docker未安装"
+            exit 1
           fi
           
-          # 停止并删除现有容器
-          echo "停止现有容器..."
-          docker stop railway-py 2>/dev/null || true
-          docker rm railway-py 2>/dev/null || true
+          if ! docker info > /dev/null 2>&1; then
+            echo "❌ Docker服务未运行"
+            exit 1
+          fi
+          echo "✅ Docker状态正常"
           
-          # 删除旧镜像（可选，节省空间）
-          echo "删除旧镜像..."
-          docker rmi railway-py:latest 2>/dev/null || true
+          # 进入部署目录
+          echo "步骤2: 准备部署目录..."
+          if ! cd /opt/railway-py 2>/dev/null; then
+            echo "目录不存在，正在创建..."
+            if ! mkdir -p /opt/railway-py; then
+              echo "❌ 创建目录失败"
+              exit 1
+            fi
+            if ! cd /opt/railway-py; then
+              echo "❌ 进入目录失败"
+              exit 1
+            fi
+          fi
+          echo "✅ 当前目录: $(pwd)"
+          
+          # 克隆或更新代码
+          echo "步骤3: 获取代码..."
+          if [ ! -d ".git" ]; then
+            echo "第一次部署，正在克隆代码..."
+            if ! git clone https://github.com/maius28/railway-py.git .; then
+              echo "❌ 代码克隆失败"
+              exit 1
+            fi
+            echo "✅ 代码克隆成功"
+          else
+            echo "更新代码..."
+            if ! git fetch origin; then
+              echo "❌ 获取远程代码失败"
+              exit 1
+            fi
+            if ! git reset --hard origin/master; then
+              echo "❌ 重置代码失败"
+              exit 1
+            fi
+            echo "✅ 代码更新成功"
+          fi
+          
+          # 验证关键文件
+          echo "步骤4: 验证关键文件..."
+          if [ ! -f "Dockerfile" ]; then
+            echo "❌ Dockerfile不存在"
+            exit 1
+          fi
+          if [ ! -f "requirements.txt" ]; then
+            echo "❌ requirements.txt不存在"
+            exit 1
+          fi
+          echo "✅ 关键文件验证通过"
+          
+          # 停止现有容器
+          echo "步骤5: 停止现有容器..."
+          if docker ps -q -f name=railway-py | grep -q .; then
+            echo "发现运行中的容器，正在停止..."
+            if ! docker stop railway-py; then
+              echo "❌ 停止容器失败"
+              exit 1
+            fi
+            echo "✅ 容器已停止"
+          else
+            echo "ℹ️ 没有运行中的容器"
+          fi
+          
+          # 删除现有容器
+          echo "步骤6: 删除现有容器..."
+          if docker ps -aq -f name=railway-py | grep -q .; then
+            echo "发现已存在的容器，正在删除..."
+            if ! docker rm railway-py; then
+              echo "❌ 删除容器失败"
+              exit 1
+            fi
+            echo "✅ 容器已删除"
+          else
+            echo "ℹ️ 没有需要删除的容器"
+          fi
+          
+          # 删除旧镜像
+          echo "步骤7: 删除旧镜像..."
+          if docker images -q railway-py:latest | grep -q .; then
+            echo "发现旧镜像，正在删除..."
+            if ! docker rmi railway-py:latest; then
+              echo "❌ 删除镜像失败"
+              exit 1
+            fi
+            echo "✅ 旧镜像已删除"
+          else
+            echo "ℹ️ 没有旧镜像需要删除"
+          fi
           
           # 构建新镜像
-          echo "构建Docker镜像..."
-          docker build -t railway-py:latest .
+          echo "步骤8: 构建Docker镜像..."
+          if ! docker build -t railway-py:latest .; then
+            echo "❌ 镜像构建失败"
+            exit 1
+          fi
+          echo "✅ 镜像构建成功"
           
           # 运行新容器
-          echo "启动新容器..."
-          docker run -d \
+          echo "步骤9: 启动新容器..."
+          if ! docker run -d \
             --name railway-py \
             --restart unless-stopped \
             -p 8000:8000 \
-            railway-py:latest
+            railway-py:latest; then
+            echo "❌ 容器启动失败"
+            exit 1
+          fi
+          echo "✅ 容器启动成功"
           
           # 等待服务启动
-          echo "等待服务启动..."
-          sleep 10
+          echo "步骤10: 等待服务启动..."
+          sleep 15
           
           # 检查容器状态
-          echo "检查容器状态..."
-          docker ps | grep railway-py
+          echo "步骤11: 检查容器状态..."
+          if ! docker ps | grep railway-py; then
+            echo "❌ 容器未在运行状态"
+            echo "容器日志："
+            docker logs railway-py
+            exit 1
+          fi
+          echo "✅ 容器运行正常"
           
           # 测试服务
-          echo "测试服务..."
-          curl -f http://localhost:8000/ping && echo "✅ 服务启动成功！" || echo "❌ 服务启动失败"
+          echo "步骤12: 测试服务..."
+          MAX_ATTEMPTS=5
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "第 $i 次测试服务..."
+            if curl -f http://localhost:8000/ping 2>/dev/null; then
+              echo "✅ 服务响应正常"
+              break
+            else
+              if [ $i -eq $MAX_ATTEMPTS ]; then
+                echo "❌ 服务测试失败，已达到最大重试次数"
+                echo "容器日志："
+                docker logs railway-py
+                exit 1
+              else
+                echo "⏳ 服务暂未响应，等待重试..."
+                sleep 5
+              fi
+            fi
+          done
           
-          # 清理Docker系统（可选）
-          echo "清理Docker系统..."
-          docker system prune -f
+          # 清理Docker系统
+          echo "步骤13: 清理Docker系统..."
+          if ! docker system prune -f; then
+            echo "⚠️ Docker系统清理失败，但不影响部署"
+          else
+            echo "✅ Docker系统清理完成"
+          fi
           
-          echo "部署完成！"
+          echo "========================================="
+          echo "🎉 部署成功完成！"
+          echo "容器状态:"
+          docker ps | grep railway-py
+          echo "容器日志（最后10行）:"
+          docker logs --tail 10 railway-py
+          echo "访问地址: http://服务器IP:8000"
+          echo "API文档: http://服务器IP:8000/docs"
+          echo "========================================="
