@@ -19,15 +19,26 @@ class UpDownType(IntEnum):
     DOWN = 2  # 下行
 
 class EventArgs(BaseModel):
-    eventId: int
-    eventName: str
-    startTime: datetime = Field(..., description="Format: YYYY-MM-DD HH:MM:SS")
-    trainNo: str
-    preStation: str
-    nextStation: str
-    upDown: UpDownType
-    addressType: str
-    eventType: EventType
+    event_id: int
+    event_name: str
+    start_time: datetime = Field(..., description="Format: YYYY-MM-DD HH:MM:SS")
+    train_no: str
+    pre_station: str
+    next_station: str
+    up_down: UpDownType
+    address_type: str
+    event_type: EventType
+    wind_speed: Optional[float] = None  # 风速
+    snow_depth: Optional[float] = None  # 降雪量
+    rainfall: Optional[float] = None  # 降雨量
+    visibility: Optional[int] = None  # 能见度
+    device_failure_type: Optional[int] = None  # 设备故障类型
+    recover_after_disposal: Optional[bool] = None  # 处置后是否恢复
+    human_factors_type: Optional[int] = None  # 人为因素事件类型
+    collision: Optional[bool] = None  # 是否发生碰撞
+    harsh_env_type: Optional[int] = None  # 泥石流类型
+    catenary_hang: Optional[bool] = None  # 接触网是否挂异物
+    catenary_size: Optional[float] = None  # 异物大小
 
 
 # 图的类
@@ -144,5 +155,3 @@ class PredictResponse(BaseModel):
 class PredictRequest(BaseModel):
     args: EventArgs
     graph: Dict[str, GraphNode]
-
-    
