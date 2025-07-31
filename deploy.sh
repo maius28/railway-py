@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# 本地部署脚本 - 用于在阿里云服务器上手动部署
-# 使用方法: 将此脚本上传到服务器并执行
+# 手动部署脚本 - 用于在阿里云服务器上手动部署
+# 使用方法: 
+# 1. 将代码上传到服务器 /opt/railway-py 目录
+# 2. 运行此脚本: ./deploy.sh
 
 set -e
 
@@ -12,21 +14,28 @@ APP_NAME="railway-py"
 CONTAINER_NAME="railway-py"
 IMAGE_NAME="railway-py:latest"
 PORT=8000
-REPO_URL="https://github.com/maius28/railway-py.git"
 DEPLOY_DIR="/opt/railway-py"
 
-# 进入部署目录
-cd $DEPLOY_DIR || { echo "目录不存在，正在创建..."; mkdir -p $DEPLOY_DIR; cd $DEPLOY_DIR; }
-
-# 如果是第一次部署，克隆代码
-if [ ! -d ".git" ]; then
-    echo "第一次部署，正在克隆代码..."
-    git clone $REPO_URL .
-else
-    echo "更新代码..."
-    git fetch origin
-    git reset --hard origin/master
+# 检查是否在正确目录
+if [ ! -f "Dockerfile" ] || [ ! -f "requirements.txt" ]; then
+    echo "❌ 请确保在项目根目录运行此脚本（包含Dockerfile和requirements.txt）"
+    exit 1
 fi
+
+# 检查Docker是否安装
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker未安装，请先安装Docker"
+    exit 1
+fi
+
+# 检查Docker服务是否运行
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker服务未运行，请启动Docker服务"
+    echo "运行: sudo systemctl start docker"
+    exit 1
+fi
+
+echo "✅ Docker状态正常"
 
 # 停止并删除现有容器
 echo "停止现有容器..."
@@ -51,22 +60,43 @@ docker run -d \
 
 # 等待服务启动
 echo "等待服务启动..."
-sleep 10
+sleep 15
 
 # 检查容器状态
 echo "检查容器状态..."
-docker ps | grep $CONTAINER_NAME
+if docker ps | grep $CONTAINER_NAME > /dev/null; then
+    echo "✅ 容器运行正常"
+    docker ps | grep $CONTAINER_NAME
+else
+    echo "❌ 容器启动失败"
+    echo "容器日志："
+    docker logs $CONTAINER_NAME
+    exit 1
+fi
 
 # 测试服务
 echo "测试服务..."
-curl -f http://localhost:$PORT/ping && echo "✅ 服务启动成功！" || echo "❌ 服务启动失败"
+for i in {1..5}; do
+    if curl -f http://localhost:$PORT/ping 2>/dev/null; then
+        echo "✅ 服务响应正常"
+        break
+    else
+        echo "⏳ 第${i}次测试失败，等待重试..."
+        sleep 5
+    fi
+done
 
-# 清理Docker系统（可选）
-echo "清理Docker系统..."
-docker system prune -f
-
+echo "========================================="
 echo "部署完成！"
 echo "应用访问地址: http://服务器IP:$PORT"
 echo "API文档地址: http://服务器IP:$PORT/docs"
 echo "查看日志: docker logs $CONTAINER_NAME"
 echo "进入容器: docker exec -it $CONTAINER_NAME /bin/bash"
+echo "========================================="
+
+# 显示最终状态
+echo "最终状态："
+echo "容器状态:"
+docker ps | grep $CONTAINER_NAME
+echo "容器日志（最后10行）:"
+docker logs --tail 10 $CONTAINER_NAME
