@@ -19,12 +19,5 @@ router = APIRouter()
 @router.post("/affect/predict", response_model=ResponseModel)
 @log_function
 def forecast(request: dict = Body(...)):
-    try:
-        print(f"收到API请求: {request}")
-        algorithm_result = algorithm.get_predict_result(request)
-        return ResponseModel.success(algorithm_result)
-    except Exception as e:
-        print(f"算法执行异常: {e}")
-        import traceback
-        traceback.print_exc()
-        return ResponseModel.fail(f"算法异常: {str(e)}")
+    algorithm_result = algorithm.get_predict_result(request)
+    return ResponseModel.success(algorithm_result)

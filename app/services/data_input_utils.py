@@ -447,10 +447,10 @@ class DataInputUtils:
             args = request_data.get('args', {})
             
             # 获取基本信息
-            train_no = args.get('trainNo', 'G1')
-            start_time = args.get('startTime', '2025-07-22 08:00:00')
-            pre_station = args.get('preStation', '济南西')
-            next_station = args.get('nextStation', '泰安')
+            train_no = args.get('train_no', 'G1')
+            start_time = args.get('start_time', '2025-07-22 08:00:00')
+            pre_station = args.get('pre_station', '济南西')
+            next_station = args.get('next_station', '泰安')
             
             # 解析时间
             try:
@@ -543,10 +543,10 @@ class DataInputUtils:
             args = predict_request.args
             
             # 获取基本信息
-            train_no = args.trainNo
-            start_time = args.startTime
-            pre_station = args.preStation
-            next_station = args.nextStation
+            train_no = args.train_no
+            start_time = args.start_time
+            pre_station = args.pre_station
+            next_station = args.next_station
             
             # 解析时间
             try:

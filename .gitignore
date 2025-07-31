@@ -81,3 +81,9 @@ Desktop.ini
 
 # Logs
 *.log
+
+# 在 .gitignore 中添加
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

@@ -155,3 +155,21 @@ class PredictResponse(BaseModel):
 class PredictRequest(BaseModel):
     args: EventArgs
     graph: Dict[str, GraphNode]
+
+
+class TrainDelayRequest(BaseModel):
+    time_gap: List[float]
+    dist: float
+    lats: List[float]
+    lngs: List[float]
+    driverID: Union[int, str]
+    weekID: Union[int, str]
+    states: List[float]
+    timeID: int
+    time: float
+    dateID: Union[int, str]
+    dist_gap: List[float]
+    weather: List[Union[int, float, str]]
+    temperature: List[Union[int, float, str]]
+    wind: List[Union[int, float, str]]
+
