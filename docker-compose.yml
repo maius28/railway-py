@@ -1,14 +1,43 @@
-version: '3.8'
-
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: railway-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: qwe123
+      MYSQL_DATABASE: train
+      MYSQL_USER: railway
+      MYSQL_PASSWORD: qwe123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # 初始化SQL脚本
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pqwe123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   railway-py:
     build: .
     ports:
       - "8000:8000"
     restart: unless-stopped
     container_name: railway-py
+    depends_on:
+      mysql:
+        condition: service_healthy
     environment:
       - PYTHONPATH=/app
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=railway
+      - DB_PASSWORD=qwe123
+      - DB_NAME=train
+      - DB_CHARSET=utf8mb4
     volumes:
       - ./logs:/app/logs  # 如果需要日志持久化
     healthcheck:
@@ -17,3 +46,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  mysql_data:

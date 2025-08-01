@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import sys
 import os
+from app.core.database import db_connection
 
 
 try:
@@ -26,12 +27,18 @@ except ImportError:
 class DataInputUtils:
     def __init__(self, db_config: Dict[str, str]):
         """
-        初始化数据输入工具
+        初始化数据输入工具，使用全局数据库连接
         """
         try:
-            self.db = pymysql.connect(**db_config)
-            self.cursor = self.db.cursor()
-            print("数据库连接成功")
+            # 使用全局数据库连接
+            if db_connection.is_connected() or db_connection.connect():
+                self.db = db_connection.db
+                self.cursor = db_connection.cursor
+                print("数据库连接成功")
+            else:
+                print("数据库连接失败")
+                self.db = None
+                self.cursor = None
         except Exception as e:
             print(f"数据库连接失败: {e}")
             self.db = None

@@ -1,13 +1,16 @@
 import torch
-import json
 import os
+import json
 import inspect
+import random
+import traceback
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from app.services.train_delay import utils
 from app.services.train_delay.data_loader import collate_fn
 from app.services.train_delay import models
 from app.services.data_input_utils import DataInputUtils
+from app.core.database import db_connection, DatabaseConfig
 
 from app.models.predict import (
     PredictRequest, PredictResponse, Statistics, TrainTableItem,
@@ -28,17 +31,17 @@ model.load_state_dict(torch.load(WEIGHT_PATH, map_location='cpu'))
 model.eval()
 
 # 初始化数据输入工具
-db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'qwe123',
-    'database': 'train',
-    'charset': 'utf8mb4'
-}
-
+print("初始化数据库连接...")
 try:
-    data_input_utils = DataInputUtils(db_config)
-    print("数据输入工具初始化成功")
+    # 连接数据库
+    if db_connection.connect():
+        # 使用新的数据库配置
+        db_config = DatabaseConfig.get_db_config()
+        data_input_utils = DataInputUtils(db_config)
+        print("数据输入工具初始化成功")
+    else:
+        print("数据库连接失败，数据输入工具将无法使用")
+        data_input_utils = None
 except Exception as e:
     print(f"数据输入工具初始化失败: {e}")
     data_input_utils = None
@@ -107,9 +110,6 @@ def _get_next_station_from_schedule(train_no: str, date_str: str, current_statio
     """
     从时刻表获取指定列车的下一站
     """
-    if not data_input_utils or not data_input_utils.cursor:
-        print("数据库游标未初始化")
-        return None
     try:
         # 查询指定列车在指定日期的站点序列
         sql = """
@@ -118,8 +118,7 @@ def _get_next_station_from_schedule(train_no: str, date_str: str, current_statio
             WHERE train_ID = %s AND DATE(departure_time) = %s
             ORDER BY departure_time
         """
-        data_input_utils.cursor.execute(sql, (train_no, date_str))
-        stations = data_input_utils.cursor.fetchall()
+        stations = db_connection.execute_with_retry(sql, (train_no, date_str))
         
         # 找到当前站点的位置
         current_index = -1
@@ -145,10 +144,6 @@ def _get_affected_station_range(train_no: str, date_str: str, incident_station: 
     """
     获取受影响站点范围
     """
-    if not data_input_utils or not data_input_utils.cursor:
-        print("数据库游标未初始化")
-        return [incident_station]
-    
     try:
         # 查询指定列车在指定日期的站点序列
         sql = """
@@ -158,8 +153,7 @@ def _get_affected_station_range(train_no: str, date_str: str, incident_station: 
             ORDER BY departure_time
         """
         
-        data_input_utils.cursor.execute(sql, (train_no, date_str))
-        stations = data_input_utils.cursor.fetchall()
+        stations = db_connection.execute_with_retry(sql, (train_no, date_str))
         
         # 找到事故站点的位置
         incident_index = -1
@@ -191,10 +185,6 @@ def _get_concurrent_trains_in_range(date_str: str, time_window_start: datetime, 
     """
     concurrent_trains = []
     
-    if not data_input_utils or not data_input_utils.cursor:
-        print("数据库游标未初始化")
-        return concurrent_trains
-    
     try:
         # 查询在指定时间窗口内到达或从事故站点出发的列车
         sql = """
@@ -204,11 +194,11 @@ def _get_concurrent_trains_in_range(date_str: str, time_window_start: datetime, 
             FROM test3 t1
             JOIN test3 t2 ON t1.train_ID = t2.train_ID 
             WHERE DATE(t1.departure_time) = %s
-              AND (t1.station = %s OR t2.station = %s)  # 从事故站点出发或到达事故站点
+              AND (t1.station = %s OR t2.station = %s)  -- 从事故站点出发或到达事故站点
               AND t1.departure_time BETWEEN %s AND %s
               AND t2.arrival_time BETWEEN %s AND %s
-              AND t1.departure_time < t2.arrival_time  # 确保时间顺序正确
-              AND t1.station != t2.station  # 确保不是同一站点
+              AND t1.departure_time < t2.arrival_time  -- 确保时间顺序正确
+              AND t1.station != t2.station  -- 确保不是同一站点
             ORDER BY t1.departure_time
         """
         
@@ -218,10 +208,10 @@ def _get_concurrent_trains_in_range(date_str: str, time_window_start: datetime, 
         print(f"查询事故站点 {incident_station} 的并发列车")
         print(f"时间窗口: {start_time_str} - {end_time_str}")
         
-        data_input_utils.cursor.execute(sql, (date_str, incident_station, incident_station, 
-                                             start_time_str, end_time_str, start_time_str, end_time_str))
+        rows = db_connection.execute_with_retry(sql, (date_str, incident_station, incident_station, 
+                                                    start_time_str, end_time_str, start_time_str, end_time_str))
         
-        for row in data_input_utils.cursor.fetchall():
+        for row in rows:
             train_info = {
                 "train_ID": row[0],
                 "from_station": row[1],
@@ -648,10 +638,10 @@ def get_predict_result(request) -> PredictResponse:
         delay_train_table = []
         for train_info in affected_trains:
             delay_train_table.append(TrainTableItem(
-                train_mo=train_info['trainNo'],
-                start_station=train_info['start_station'],
-                end_station=train_info['end_station'],
-                next_station=train_info['next_station'],
+                train_id=train_info['trainNo'],
+                start_station=train_info['startStation'],
+                end_station=train_info['endStation'],
+                next_station=train_info['nextStation'],
                 status=train_info['status'],
                 affect_time=train_info['delay'],
             ))
@@ -711,7 +701,7 @@ def get_predict_result(request) -> PredictResponse:
             "trainNo": "G123",
             "preStation": "北京南",
             "nextStation": "天津南",
-            "upDown": 1,
+            "upDown": "up",  # 使用字符串而不是数字
             "addressType": "区间",
             "eventType": 2
         }
@@ -747,7 +737,15 @@ def get_predict_result(request) -> PredictResponse:
         print("后果预估算法执行完成")
     except Exception as e:
         print(f"后果预估算法异常：{e}")
-        event_graph = None
+        # 异常时使用默认的事件图，不能设置为None
+        event_graph = {
+            "A": EventGraphNode(
+                description="系统异常，使用默认流程",
+                predict_time="0s",
+                real_time="0s",
+                status=EventNodeStatus.PENDING
+            )
+        }
     
     # ========== 组合输出结果 ==========
     print("组合输出结果")

@@ -13,10 +13,10 @@ class EventType(IntEnum):
     HUMAN_FACTOR = 3      # 人为因素
     SPECIAL_ENVIRONMENT = 4  # 特殊环境
 
-class UpDownType(IntEnum):
+class UpDownType(str, Enum):
     """上下行类型枚举"""
-    UP = 1  # 上行
-    DOWN = 2  # 下行
+    UP = "up"  # 上行
+    DOWN = "down"  # 下行
 
 class EventArgs(BaseModel):
     event_id: int
