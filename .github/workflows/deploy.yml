@@ -124,83 +124,72 @@ jobs:
             echo "❌ requirements.txt不存在"
             exit 1
           fi
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "❌ docker-compose.yml不存在"
+            exit 1
+          fi
           echo "✅ 关键文件验证通过"
           
-          # 停止现有容器
-          echo "步骤5: 停止现有容器..."
-          if docker ps -q -f name=railway-py | grep -q .; then
-            echo "发现运行中的容器，正在停止..."
-            if ! docker stop railway-py; then
-              echo "❌ 停止容器失败"
+          # 检查docker compose是否可用
+          echo "步骤5: 检查docker compose..."
+          if ! docker compose --version; then
+            echo "❌ docker compose未安装"
+            exit 1
+          fi
+          echo "✅ docker compose状态正常"
+          
+          # 停止现有服务
+          echo "步骤6: 停止现有服务..."
+          if docker compose ps -q | grep -q .; then
+            echo "发现运行中的服务，正在停止..."
+            if ! docker compose down; then
+              echo "❌ 停止服务失败"
               exit 1
             fi
-            echo "✅ 容器已停止"
+            echo "✅ 服务已停止"
           else
-            echo "ℹ️ 没有运行中的容器"
+            echo "ℹ️ 没有运行中的服务"
           fi
           
-          # 删除现有容器
-          echo "步骤6: 删除现有容器..."
-          if docker ps -aq -f name=railway-py | grep -q .; then
-            echo "发现已存在的容器，正在删除..."
-            if ! docker rm railway-py; then
-              echo "❌ 删除容器失败"
-              exit 1
-            fi
-            echo "✅ 容器已删除"
-          else
-            echo "ℹ️ 没有需要删除的容器"
-          fi
-          
-          # 删除旧镜像
-          echo "步骤7: 删除旧镜像..."
-          if docker images -q railway-py:latest | grep -q .; then
+          # 清理旧镜像（可选）
+          echo "步骤7: 清理旧镜像..."
+          if docker images -q railway-py_railway-py | grep -q .; then
             echo "发现旧镜像，正在删除..."
-            if ! docker rmi railway-py:latest; then
-              echo "❌ 删除镜像失败"
-              exit 1
+            if ! docker rmi railway-py_railway-py; then
+              echo "⚠️ 删除旧镜像失败，继续部署"
+            else
+              echo "✅ 旧镜像已删除"
             fi
-            echo "✅ 旧镜像已删除"
           else
             echo "ℹ️ 没有旧镜像需要删除"
           fi
           
-          # 构建新镜像
-          echo "步骤8: 构建Docker镜像..."
-          if ! docker build -t railway-py:latest .; then
-            echo "❌ 镜像构建失败"
+          # 构建并启动服务
+          echo "步骤8: 构建并启动服务..."
+          if ! docker compose up -d --build; then
+            echo "❌ 服务启动失败"
+            echo "查看服务日志："
+            docker compose logs
             exit 1
           fi
-          echo "✅ 镜像构建成功"
-          
-          # 运行新容器
-          echo "步骤9: 启动新容器..."
-          if ! docker run -d \
-            --name railway-py \
-            --restart unless-stopped \
-            -p 8000:8000 \
-            railway-py:latest; then
-            echo "❌ 容器启动失败"
-            exit 1
-          fi
-          echo "✅ 容器启动成功"
+          echo "✅ 服务启动成功"
           
           # 等待服务启动
-          echo "步骤10: 等待服务启动..."
-          sleep 15
+          echo "步骤9: 等待服务启动..."
+          sleep 30
           
-          # 检查容器状态
-          echo "步骤11: 检查容器状态..."
-          if ! docker ps | grep railway-py; then
-            echo "❌ 容器未在运行状态"
-            echo "容器日志："
-            docker logs railway-py
+          # 检查服务状态
+          echo "步骤10: 检查服务状态..."
+          if ! docker compose ps | grep railway-py | grep -q "Up"; then
+            echo "❌ railway-py服务未在运行状态"
+            echo "服务日志："
+            docker compose logs railway-py
             exit 1
           fi
-          echo "✅ 容器运行正常"
+          echo "✅ 服务运行正常"
           
           # 测试服务
-          echo "步骤12: 测试服务..."
+          echo "步骤11: 测试服务..."
           MAX_ATTEMPTS=5
           for i in $(seq 1 $MAX_ATTEMPTS); do
             echo "第 $i 次测试服务..."
@@ -210,18 +199,18 @@ jobs:
             else
               if [ $i -eq $MAX_ATTEMPTS ]; then
                 echo "❌ 服务测试失败，已达到最大重试次数"
-                echo "容器日志："
-                docker logs railway-py
+                echo "服务日志："
+                docker compose logs railway-py
                 exit 1
               else
                 echo "⏳ 服务暂未响应，等待重试..."
-                sleep 5
+                sleep 10
               fi
             fi
           done
           
           # 清理Docker系统
-          echo "步骤13: 清理Docker系统..."
+          echo "步骤12: 清理Docker系统..."
           if ! docker system prune -f; then
             echo "⚠️ Docker系统清理失败，但不影响部署"
           else
@@ -230,10 +219,11 @@ jobs:
           
           echo "========================================="
           echo "🎉 部署成功完成！"
-          echo "容器状态:"
-          docker ps | grep railway-py
-          echo "容器日志（最后10行）:"
-          docker logs --tail 10 railway-py
+          echo "服务状态:"
+          docker compose ps
+          echo "railway-py服务日志（最后10行）:"
+          docker compose logs --tail 10 railway-py
           echo "访问地址: http://服务器IP:8000"
           echo "API文档: http://服务器IP:8000/docs"
-          echo "========================================="
+          echo "数据库地址: 服务器IP:3306"
+          echo "========================================"

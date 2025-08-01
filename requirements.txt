@@ -1,7 +1,9 @@
 fastapi==0.110.2
 uvicorn==0.29.0
 pydantic>=2.0
-torch==2.3.1
 numpy==1.26.4
 ujson==5.10.0
 pymysql==1.1.1
+
+torch==2.3.1+cpu 
+-f https://download.pytorch.org/whl/cpu/torch_stable.html
