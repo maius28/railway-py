@@ -14,7 +14,7 @@ from app.core.database import db_connection, DatabaseConfig
 
 from app.models.predict import (
     PredictRequest, PredictResponse, Statistics, TrainTableItem,
-    TrainStatus, TrainDelayRequest, AffectGraph, AffectAddress, EventGraphNode, EventNodeStatus, 
+    TrainStatus, TrainDelayRequest, AffectGraph, AffectAddress,
     AffectPoint, LineSegment, LineTrainInfo, TrainDirection
 )
 
@@ -64,8 +64,8 @@ def _prepare_input_for_model(input_data):
     return attr, traj
 
 def _convert_to_model_format(request_data):
-    if isinstance(request_data, dict) and 'args' in request_data and 'graph' in request_data:
-        # PredictRequest 格式：包含 args 和 graph
+    if isinstance(request_data, dict) and 'args' in request_data:
+        # PredictRequest 格式：包含 args
         if data_input_utils is not None:
             try:
                 predict_request = PredictRequest(**request_data)
@@ -527,30 +527,10 @@ def get_predict_result(request) -> PredictResponse:
         }
         
         # 转换输入格式
-        if isinstance(request, dict) and 'args' in request and 'graph' in request:
+        if isinstance(request, dict) and 'args' in request:
             # PredictRequest 格式：使用数据输入工具转换
             print("检测到 PredictRequest 格式，使用数据输入工具转换")
             train_delay_params = _convert_to_model_format(request)
-        elif isinstance(request, dict) and 'args' in request:
-            # 从args中提取晚点预测需要的参数
-            args = request['args']
-            train_delay_params = {
-                "time_gap": args.get("time_gap", default_delay_params["time_gap"]),
-                "dist": args.get("dist", default_delay_params["dist"]),
-                "lats": args.get("lats", default_delay_params["lats"]),
-                "lngs": args.get("lngs", default_delay_params["lngs"]),
-                "driverID": args.get("driverID", default_delay_params["driverID"]),
-                "weekID": args.get("weekID", default_delay_params["weekID"]),
-                "states": args.get("states", default_delay_params["states"]),
-                "timeID": args.get("timeID", default_delay_params["timeID"]),
-                "time": args.get("time", default_delay_params["time"]),
-                "dateID": args.get("dateID", default_delay_params["dateID"]),
-                "dist_gap": args.get("dist_gap", default_delay_params["dist_gap"]),
-                "weather": args.get("weather", default_delay_params["weather"]),
-                "temperature": args.get("temperature", default_delay_params["temperature"]),
-                "wind": args.get("wind", default_delay_params["wind"])
-            }
-            print("使用提供的args参数进行晚点预测")
         else:
             # 转换输入格式或使用默认参数
             train_delay_params = _convert_to_model_format(request) if isinstance(request, dict) else default_delay_params
@@ -663,95 +643,7 @@ def get_predict_result(request) -> PredictResponse:
         delay_train_table = []
         affect_graph = _generate_affect_graph(0, [], '天津南')
     
-    # ========== 后果预估算法执行 ==========
-    # 创建事件图
-    event_graph = {
-        "A": EventGraphNode(
-            description="司机发现接触网上挂有异物",
-            predict_time="10s",
-            real_time="10s",
-            status=EventNodeStatus.PENDING
-        ),
-        "B": EventGraphNode(
-            description="司机通知处理",
-            predict_time="100s",
-            real_time="10s",
-            status=EventNodeStatus.PENDING
-        ),
-        "C": EventGraphNode(
-            description="路段清理",
-            predict_time="10min",
-            real_time="10s",
-            status=EventNodeStatus.PENDING
-        ),
-        "END": EventGraphNode(
-            description="结束",
-            predict_time="",
-            status=EventNodeStatus.PENDING
-        )
-    }
-    try:
-        print("执行后果预估算法")
-        
-        # 后果预估的默认参数
-        default_consequence_args = {
-            "eventId": 1,
-            "eventName": "设备故障",
-            "startTime": "2024-06-01 12:00:00",
-            "trainNo": "G123",
-            "preStation": "北京南",
-            "nextStation": "天津南",
-            "upDown": "up",  # 使用字符串而不是数字
-            "addressType": "区间",
-            "eventType": 2
-        }
-        default_graph = {
-            "A": {
-                "description": "开始",
-                "type": "action",
-                "predict_time": "10",
-                "state": "not done"
-            }
-        }
-        
-        # 构造后果预估的请求参数
-        if isinstance(request, dict) and 'args' in request:
-            # 使用提供的args参数
-            consequence_args = request['args']
-            consequence_graph = request.get('graph', default_graph)
-            print("使用提供的args参数进行后果预估")
-        else:
-            # 使用后果预估的默认参数
-            consequence_args = default_consequence_args
-            consequence_graph = default_graph
-            print("使用后果预估默认参数")
-        
-        consequence_request = {
-            "args": consequence_args,
-            "graph": consequence_graph
-        }
-        
-        req = PredictRequest(**consequence_request)
-    
-
-        print("后果预估算法执行完成")
-    except Exception as e:
-        print(f"后果预估算法异常：{e}")
-        # 异常时使用默认的事件图，不能设置为None
-        event_graph = {
-            "A": EventGraphNode(
-                description="系统异常，使用默认流程",
-                predict_time="0s",
-                real_time="0s",
-                status=EventNodeStatus.PENDING
-            )
-        }
-    
-    # ========== 组合输出结果 ==========
-    print("组合输出结果")
-    
     return PredictResponse(
-        event_graph=event_graph,
         statistics=delay_statistics,
         train_table=delay_train_table,
         affect_graph=affect_graph

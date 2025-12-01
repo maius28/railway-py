@@ -40,52 +40,6 @@ class EventArgs(BaseModel):
     catenary_hang: Optional[bool] = None  # 接触网是否挂异物
     catenary_size: Optional[float] = None  # 异物大小
 
-
-# 图的类
-# 节点类型枚举
-class NodeType(str, Enum):
-    ACTION = "action"
-    WARN = "warn"
-    BRANCH_SELECTION = "branch_selection"
-
-# 节点状态枚举
-class NodeState(str, Enum):
-    NOT_DONE = "not done"
-    DONE = "done"
-
-# 节点参数类
-class NodeArg(BaseModel):
-    time: Optional[str] = None
-    locate: Optional[str] = None
-
-# 图节点类
-class GraphNode(BaseModel):
-    description: str
-    type: str  # 使用字符串以支持自定义类型
-    predict_time: str
-    state: str = "not done"
-    next: Optional[Union[str, List[str]]] = None
-    options: Optional[Dict[str, str]] = None  # 用于分支选择
-    arg: Optional[List[NodeArg]] = None  # 可选参数列表
-
-# 事件图结构
-class EventGraph(RootModel[Dict[str, GraphNode]]):
-    root: Dict[str, GraphNode]
-
-# 事件图节点状态
-class EventNodeStatus(IntEnum):
-    """事件节点状态枚举"""
-    PENDING = 0  # 待处理
-    PROCESSING = 1  # 处理中
-    COMPLETED = 2  # 已完成
-
-# 事件图节点
-class EventGraphNode(BaseModel):
-    description: str
-    predict_time: str  # 预测时间
-    real_time: Optional[str] = None  # 实际时间
-    status: EventNodeStatus
-
 # 统计信息
 class Statistics(BaseModel):
     impact_duration: int  # 影响持续时间
@@ -146,7 +100,6 @@ class AffectGraph(BaseModel):
 
 # 预测响应结果
 class PredictResponse(BaseModel):
-    event_graph: Dict[str, EventGraphNode]  # 事件图
     statistics: Statistics  # 统计信息
     train_table: List[TrainTableItem]  # 列车表
     affect_graph: AffectGraph  # 影响图
@@ -154,7 +107,6 @@ class PredictResponse(BaseModel):
 # 预测请求模型
 class PredictRequest(BaseModel):
     args: EventArgs
-    graph: Dict[str, GraphNode]
 
 
 class TrainDelayRequest(BaseModel):
