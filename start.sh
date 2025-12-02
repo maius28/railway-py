@@ -36,8 +36,8 @@ check_docker() {
 
 # 检查必要文件
 check_files() {
-    if [ ! -f "docker compose.yml" ]; then
-        print_error "找不到 docker compose.yml 文件"
+    if [ ! -f "docker-compose.yml" ]; then
+        print_error "找不到 docker-compose.yml 文件"
         exit 1
     fi
 }
