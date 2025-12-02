@@ -36,8 +36,8 @@ check_docker() {
 
 # 检查必要文件
 check_files() {
-    if [ ! -f "docker-compose.yml" ]; then
-        print_error "找不到 docker-compose.yml 文件"
+    if [ ! -f "docker compose.yml" ]; then
+        print_error "找不到 docker compose.yml 文件"
         exit 1
     fi
 }
@@ -52,13 +52,13 @@ create_dirs() {
 # 启动服务
 start_service() {
     print_info "启动 Railway-py 服务..."
-    docker-compose up --build -d
+    docker compose up --build -d
     
     print_info "等待服务启动..."
     sleep 5
     
     print_info "检查服务状态..."
-    docker-compose ps
+    docker compose ps
     
     echo ""
     print_info "服务已启动！"
@@ -70,33 +70,33 @@ start_service() {
 # 停止服务
 stop_service() {
     print_info "停止 Railway-py 服务..."
-    docker-compose down
+    docker compose down
     print_info "服务已停止"
 }
 
 # 重启服务
 restart_service() {
     print_info "重启 Railway-py 服务..."
-    docker-compose restart
+    docker compose restart
     sleep 5
-    docker-compose ps
+    docker compose ps
     print_info "服务已重启"
 }
 
 # 查看日志
 view_logs() {
     print_info "查看服务日志 (Ctrl+C 退出)..."
-    docker-compose logs -f --tail=100
+    docker compose logs -f --tail=100
 }
 
 # 查看状态
 check_status() {
     print_info "服务状态:"
-    docker-compose ps
+    docker compose ps
     
     echo ""
     print_info "容器资源使用:"
-    docker stats --no-stream $(docker-compose ps -q)
+    docker stats --no-stream $(docker compose ps -q)
     
     echo ""
     print_info "测试 API 连接..."
@@ -115,7 +115,7 @@ cleanup() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_info "清理环境..."
-        docker-compose down -v
+        docker compose down -v
         print_info "清理完成"
     else
         print_info "操作已取消"
