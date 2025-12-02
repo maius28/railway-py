@@ -2,8 +2,6 @@ import torch
 import os
 import json
 import inspect
-import random
-import traceback
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from app.services.train_delay import utils
@@ -15,7 +13,8 @@ from app.core.database import db_connection, DatabaseConfig
 from app.models.predict import (
     PredictRequest, PredictResponse, Statistics, TrainTableItem,
     TrainStatus, TrainDelayRequest, AffectGraph, AffectAddress,
-    AffectPoint, LineSegment, LineTrainInfo, TrainDirection
+    AffectPoint, LineSegment, LineTrainInfo, TrainDirection,
+    EventLocationType
 )
 
 # 晚点预测模型加载
@@ -267,22 +266,30 @@ def _calculate_affected_delay(primary_delay: int, time_factor: float, space_fact
     
     return affected_delay
 
-def _get_affected_trains_from_schedule(request: Dict[str, Any], primary_raw_delay: int) -> List[Dict[str, Any]]:
+def _get_affected_trains_from_schedule(request: PredictRequest, primary_raw_delay: int) -> List[Dict[str, Any]]:
     """
     基于时刻表数据获取受影响的列车列表
     """
     affected_trains = []
     
     try:
-        # 从请求中获取基本信息
-        args = request.get('args', {})
-        primary_train_no = args.get('trainNo', 'G1')
-        start_time_str = args.get('startTime', '2025-07-22 08:00:00')
-        incident_station = args.get('preStation', '天津南')  # 事故发生站点（从前端获取）
+        # 从 PredictRequest 对象中获取基本信息
+        args = request.args
+        primary_train_no = args.train_id
+        start_time = args.event_time
         
-        # 解析时间
+        # 解析事故站点：从 event_location_value 中获取第一个站点
+        if args.event_location == EventLocationType.SECTION:
+            incident_station = args.event_location_value.split(",")[0]
+        else:
+            incident_station = args.event_location_value
+        
+        # 解析时间 - 支持 datetime 对象和字符串
         try:
-            incident_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
+            if isinstance(start_time, datetime):
+                incident_time = start_time
+            else:
+                incident_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
             date_str = incident_time.strftime("%Y-%m-%d")
             
             # 定义时间窗口：以事故时间为中心，前后各30分钟
@@ -386,11 +393,20 @@ def _get_affected_trains_from_schedule(request: Dict[str, Any], primary_raw_dela
         import traceback
         traceback.print_exc()
         # 如果出错，至少返回主要列车的信息
+        try:
+            train_no = request.args.train_id if hasattr(request, 'args') else 'G1'
+            station = incident_station if 'incident_station' in locals() else '天津南'
+            next_st = next_station if 'next_station' in locals() else '未知'
+        except:
+            train_no = 'G1'
+            station = '天津南'
+            next_st = '未知'
+            
         affected_trains = [{
-            'trainNo': args.get('trainNo', 'G1'),
-            'startStation': incident_station,
-            'endStation': next_station if 'next_station' in locals() else '未知',
-            'nextStation': next_station if 'next_station' in locals() else '未知',
+            'trainNo': train_no,
+            'startStation': station,
+            'endStation': next_st,
+            'nextStation': next_st,
             'delay': primary_raw_delay, # 原始预测值
             'time_factor': 1.0,
             'space_factor': 1.0,
@@ -494,7 +510,7 @@ def _generate_affect_graph(primary_delay: int, affected_trains: List[Dict[str, A
 def add(a: float, b: float) -> float:
     return a + b 
 
-def get_predict_result(request) -> PredictResponse:
+def get_predict_result(request: PredictRequest) -> PredictResponse:
     """
     统一的后果预估/晚点预测算法入口
     组合输出：statistics和train_table用晚点预测，timeEstimateGraph用后果预估，trainStationGraph用影响图
@@ -508,34 +524,27 @@ def get_predict_result(request) -> PredictResponse:
     try:
         print("执行晚点预测算法")
         
-        # 晚点预测的默认参数
-        default_delay_params = {
-            "time_gap": [0.0, 0.0, -1.0, -1.0],
-            "dist": 138.0,
-            "lats": [34.44619, 34.660505, 34.772197, 34.839294],
-            "lngs": [115.658058, 115.180599, 114.824453, 114.261521],
-            "driverID": 1262,
-            "weekID": 0,
-            "states": [1.0, 1.0, 1.0, 1.0],
-            "timeID": 838,
-            "time": -1.0,
-            "dateID": 340,
-            "dist_gap": [0.0, 50.0, 35.0, 53.0],
-            "weather": [22, 22, 1, 1],
-            "temperature": [9, 10, 8, 8],
-            "wind": [24, 24, 15, 15]
-        }
+        # # 晚点预测的默认参数
+        # default_delay_params = {
+        #     "time_gap": [0.0, 0.0, -1.0, -1.0],
+        #     "dist": 138.0,
+        #     "lats": [34.44619, 34.660505, 34.772197, 34.839294],
+        #     "lngs": [115.658058, 115.180599, 114.824453, 114.261521],
+        #     "driverID": 1262,
+        #     "weekID": 0,
+        #     "states": [1.0, 1.0, 1.0, 1.0],
+        #     "timeID": 838,
+        #     "time": -1.0,
+        #     "dateID": 340,
+        #     "dist_gap": [0.0, 50.0, 35.0, 53.0],
+        #     "weather": [22, 22, 1, 1],
+        #     "temperature": [9, 10, 8, 8],
+        #     "wind": [24, 24, 15, 15]
+        # }
         
-        # 转换输入格式
-        if isinstance(request, dict) and 'args' in request:
-            # PredictRequest 格式：使用数据输入工具转换
-            print("检测到 PredictRequest 格式，使用数据输入工具转换")
-            train_delay_params = _convert_to_model_format(request)
-        else:
-            # 转换输入格式或使用默认参数
-            train_delay_params = _convert_to_model_format(request) if isinstance(request, dict) else default_delay_params
-            print("使用转换后的参数进行晚点预测")
-        
+     
+        # train_delay_params = _convert_to_model_format(request)
+        train_delay_params = data_input_utils.convert_predict_request_to_model_format(request)
         req = TrainDelayRequest(**train_delay_params)
         
         # 添加调试信息
@@ -627,7 +636,12 @@ def get_predict_result(request) -> PredictResponse:
             ))
         
         # 生成动态影响图
-        affect_graph = _generate_affect_graph(primary_predicted_delay, affected_trains, request['args'].get('preStation', '天津南'))
+        # 从 PredictRequest 对象获取事故站点
+        if request.args.event_location == EventLocationType.SECTION:
+            incident_station = request.args.event_location_value.split(",")[0]
+        else:
+            incident_station = request.args.event_location_value
+        affect_graph = _generate_affect_graph(primary_predicted_delay, affected_trains, incident_station)
         
         print(f"晚点预测结果：primary_predicted_delay={primary_predicted_delay}")
     except Exception as e:

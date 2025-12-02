@@ -18,6 +18,6 @@ router = APIRouter()
 
 @router.post("/affect/predict", response_model=ResponseModel)
 @log_function
-def forecast(request: dict = Body(...)):
+def forecast(request: PredictRequest):
     algorithm_result = algorithm.get_predict_result(request)
     return ResponseModel.success(algorithm_result)

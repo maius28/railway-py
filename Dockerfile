@@ -10,10 +10,11 @@ WORKDIR /app
 # 先复制 requirements.txt，利用 Docker 层缓存
 COPY requirements.txt ./
 
-# 安装 Python 依赖，全部使用国内镜像源
+# 安装 Python 依赖
 RUN pip install --upgrade pip && \
     pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/ \
     --trusted-host pypi.tuna.tsinghua.edu.cn \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
     -r requirements.txt
 
 # 复制应用代码

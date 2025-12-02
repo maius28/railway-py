@@ -41,6 +41,19 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"关闭数据库连接时出错: {e}")
 
+@app.get("/health")
+def health_check():
+    """健康检查端点 - 用于 Docker healthcheck"""
+    try:
+        # 检查数据库连接
+        if db_connection.is_connected():
+            return {"status": "healthy", "database": "connected"}
+        else:
+            return {"status": "unhealthy", "database": "disconnected"}
+    except Exception as e:
+        logger.error(f"健康检查失败: {e}")
+        return {"status": "unhealthy", "error": str(e)}
+
 @app.get("/ping")
 def ping():
     return {"code": 200, "msg": "pong", "data": None} 

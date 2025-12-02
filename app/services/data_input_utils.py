@@ -1,14 +1,12 @@
 import pymysql
 import random
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-import sys
-import os
+from typing import Dict, List, Any
 from app.core.database import db_connection
 
 
 try:
-    from app.models.predict import PredictRequest, EventArgs, EventType, UpDownType
+    from app.models.predict import PredictRequest, Args, EventLocationType
 except ImportError:
     # 如果导入失败，创建空的类定义
     class PredictRequest:
@@ -107,7 +105,7 @@ class DataInputUtils:
         try:
             # 查询指定列车的历史站点
             sql = """
-                SELECT DISTINCT station 
+                SELECT station 
                 FROM test3 
                 WHERE train_ID = %s 
                 ORDER BY departure_time
@@ -135,7 +133,7 @@ class DataInputUtils:
                 print(f"返回站点序列: {result_stations}")
                 return result_stations
             except ValueError:
-                print(f"警告: 未找到站点 '{pre_station}' 在历史数据中")
+                print(f"警告: 未找到站点 '{pre_station}' 在历史数据中，使用前几个站点")
                 print(f"历史站点: {stations}")
                 # 如果找不到pre_station，返回前几个站点
                 return stations[:min(4, len(stations))]
@@ -324,30 +322,30 @@ class DataInputUtils:
         if coords["lng"] == 0.0 and coords["lat"] == 0.0:
             station_with_zhan = station_name + "站"
             coords = self.station_coordinates.get(station_with_zhan, {"lng": 0.0, "lat": 0.0})
-            if coords["lng"] != 0.0 or coords["lat"] != 0.0:
-                print(f"找到站点坐标: {station_name} -> {station_with_zhan} -> ({coords['lng']}, {coords['lat']})")
-            else:
+            # if coords["lng"] != 0.0 or coords["lat"] != 0.0:
+            #     print(f"找到站点坐标: {station_name} -> {station_with_zhan} -> ({coords['lng']}, {coords['lat']})")
+            if coords["lng"] == 0.0 and coords["lat"] == 0.0:
                 station_without_zhan = station_name.replace("站", "")
                 coords = self.station_coordinates.get(station_without_zhan, {"lng": 0.0, "lat": 0.0})
-                if coords["lng"] != 0.0 or coords["lat"] != 0.0:
-                    print(f"找到站点坐标: {station_name} -> {station_without_zhan} -> ({coords['lng']}, {coords['lat']})")
-                else:
+                # if coords["lng"] != 0.0 or coords["lat"] != 0.0:
+                #     print(f"找到站点坐标: {station_name} -> {station_without_zhan} -> ({coords['lng']}, {coords['lat']})")
+                if coords["lng"] == 0.0 and coords["lat"] == 0.0:
                     print(f"警告: 未找到站点 '{station_name}' 的坐标，使用默认值 (0.0, 0.0)")
-        else:
-            print(f"获取站点坐标: {station_name} -> ({coords['lng']}, {coords['lat']})")
+        # else:
+        #     print(f"获取站点坐标: {station_name} -> ({coords['lng']}, {coords['lat']})")
         
         return coords
 
     def get_station_distance(self, station1: str, station2: str) -> float:
         """获取站点间距离"""
-        print(f"正在查找距离: '{station1}' -> '{station2}'")
+        # print(f"正在查找距离: '{station1}' -> '{station2}'")
         
         # 从数据库映射获取英文站点名称
         eng_station1 = self.station_mapping.get(station1, station1)
         eng_station2 = self.station_mapping.get(station2, station2)
         
-        print(f"  中文站点: {station1} -> {station2}")
-        print(f"  英文站点: {eng_station1} -> {eng_station2}")
+        # print(f"  中文站点: {station1} -> {station2}")
+        # print(f"  英文站点: {eng_station1} -> {eng_station2}")
         match_attempts = [
             (station1, station2),  # 中文直接匹配
             (eng_station1, eng_station2),  # 英文直接匹配
@@ -381,25 +379,24 @@ class DataInputUtils:
                 match_attempts.append((station1, base2))
                 match_attempts.append((station1 + " Railway Station", base2 + " Railway Station"))
         
-        print(f"  可用的距离数据样本:")
-        sample_count = 0
-        for (s1, s2), dist in self.station_distances.items():
-            if sample_count < 5:
-                print(f"    '{s1}' -> '{s2}' = {dist}km")
-                sample_count += 1
+        # print(f"  可用的距离数据样本:")
+        # sample_count = 0
+        # for (s1, s2), dist in self.station_distances.items():
+        #     if sample_count < 5:
+        #         print(f"    '{s1}' -> '{s2}' = {dist}km")
+        #         sample_count += 1
         
         for i, (s1, s2) in enumerate(match_attempts, 1):
-            print(f"  {i}. '{s1}' -> '{s2}'")
+            # print(f"  {i}. '{s1}' -> '{s2}'")
             if (s1, s2) in self.station_distances:
                 distance = self.station_distances[(s1, s2)]
-                print(f"  ✅ 匹配成功: {s1} -> {s2} = {distance}km")
+                # print(f"  ✅ 匹配成功: {s1} -> {s2} = {distance}km")
                 return distance
         
-        print(f"  ❌ 所有匹配方式都失败，未找到站点 '{station1}' 到 '{station2}' 的距离")
-        print(f"    尝试过的匹配方式:")
-        for i, (s1, s2) in enumerate(match_attempts, 1):
-            print(f"      {i}. '{s1}' -> '{s2}'")
-        print(f"  结果: {station1} -> {station2} = 0.0km")
+        print(f"警告: 未找到站点 '{station1}' 到 '{station2}' 的距离，返回 0.0km")
+        # print(f"    尝试过的匹配方式:")
+        # for i, (s1, s2) in enumerate(match_attempts, 1):
+        #     print(f"      {i}. '{s1}' -> '{s2}'")
         return 0.0
 
     def get_weather_code(self, weather: str) -> int:
@@ -454,8 +451,8 @@ class DataInputUtils:
             args = request_data.get('args', {})
             
             # 获取基本信息
-            train_no = args.get('train_no', 'G1')
-            start_time = args.get('start_time', '2025-07-22 08:00:00')
+            train_no = args.get('train_id', 'G1')
+            start_time = args.get('event_time', '2025-07-22 08:00:00')
             pre_station = args.get('pre_station', '济南西')
             next_station = args.get('next_station', '泰安')
             
@@ -550,21 +547,25 @@ class DataInputUtils:
             args = predict_request.args
             
             # 获取基本信息
-            train_no = args.train_no
-            start_time = args.start_time
-            pre_station = args.pre_station
-            next_station = args.next_station
+            train_no = args.train_id
+            start_time = args.event_time
+            if args.event_location == EventLocationType.SECTION:
+                s = args.event_location_value.split(",")
+                pre_station = s[0]
+                next_station = s[1]
+            else:
+                pre_station = args.event_location_value
+                next_station = args.event_location_value
             
-            # 解析时间
-            try:
+            
+            # 解析时间 - 支持 datetime 对象和字符串
+            if isinstance(start_time, datetime):
+                time_obj = start_time
+            else:
                 time_obj = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
-                date_str = time_obj.strftime("%Y-%m-%d")
-                time_str = time_obj.strftime("%H:%M:%S")
-            except:
-                time_obj = datetime.strptime("2025-07-22 08:00:00", "%Y-%m-%d %H:%M:%S")
-                date_str = "2025-07-22"
-                time_str = "08:00:00"
-            
+            date_str = time_obj.strftime("%Y-%m-%d")
+            time_str = time_obj.strftime("%H:%M:%S")
+
             # 获取历史站点信息
             historical_stations = self.get_historical_stations_from_database(train_no, pre_station)
             
@@ -598,10 +599,8 @@ class DataInputUtils:
                     distance = self.get_station_distance(prev_station, station)
                     dist_gap.append(distance)
                     
-            
                     delay = self.generate_random_delay()
                     time_gap.append(delay)
-            
             
             while len(lats) < 4:
                 lats.append(0.0)
@@ -627,17 +626,19 @@ class DataInputUtils:
                 "wind": [24, 24, 15, 15]
             }
             
-            print(f"转换结果:")
-            print(f"  time_gap: {model_input['time_gap']}")
-            print(f"  dist: {model_input['dist']}")
-            print(f"  lats: {model_input['lats']}")
-            print(f"  lngs: {model_input['lngs']}")
-            print(f"  dist_gap: {model_input['dist_gap']}")
+            # print(f"转换结果:")
+            # print(f"  time_gap: {model_input['time_gap']}")
+            # print(f"  dist: {model_input['dist']}")
+            # print(f"  lats: {model_input['lats']}")
+            # print(f"  lngs: {model_input['lngs']}")
+            # print(f"  dist_gap: {model_input['dist_gap']}")
             
             return model_input
             
         except Exception as e:
             print(f"转换失败: {e}")
+            import traceback
+            traceback.print_exc()
             return self._get_default_format()
 
     def convert_to_model_format(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
